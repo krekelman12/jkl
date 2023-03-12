@@ -28,6 +28,74 @@ const connectToDatabase = async () => {
   return { client, db, col };
 };
 
+const updateExistingProduct = async (col, cartUuid, productId, name, price, quantity) => {
+  const result = await col.updateOne(
+    { cartId: cartUuid, 'products.productId': productId },
+    {
+      $set: {
+        'products.$.name': name,
+        'products.$.price': price,
+        'products.$.quantity': quantity,
+      },
+    },
+  );
+
+  return result;
+};
+
+const addNewProduct = async (col, cartUuid, productId, name, price, quantity) => {
+  const result = await col.updateOne(
+    { cartId: cartUuid },
+    {
+      $push: {
+        products: {
+          productId, name, price, quantity,
+        },
+      },
+      $inc: {
+        totalNumberOfItems: quantity,
+      },
+    },
+    { upsert: true },
+  );
+
+  return result;
+};
+
+const updateTotals = async (col, cartUuid) => {
+  const updatedCart = await col.findOne({ cartId: cartUuid });
+
+  const totalNumberOfItems = getTotalNumberOfItems(updatedCart.products);
+  const totalPrice = getTotalPrice(updatedCart.products);
+
+  await col.updateOne(
+    { cartId: cartUuid },
+    {
+      $set: {
+        totalNumberOfItems,
+        totalPrice,
+      },
+    },
+  );
+};
+
+const getTotalNumberOfItems = products => {
+  let totalNumberOfItems = 0;
+  products.forEach(product => {
+    totalNumberOfItems += product.quantity;
+  });
+  return totalNumberOfItems;
+};
+
+const getTotalPrice = products => {
+  let totalPrice = 0;
+  products.forEach(product => {
+    totalPrice += product.price * product.quantity;
+  });
+  return totalPrice;
+};
+
+
 const generateCartId = () => uuidv4();
 
 const createNewCart = async (): Promise<Cart> => {
@@ -50,6 +118,7 @@ const getCartById = async id => {
 
 const updateCart = async cart => {
   const { col } = await connectToDatabase();
+
   const {
     cartUuid, productId, name, price, quantity,
   } = {
@@ -62,72 +131,16 @@ const updateCart = async cart => {
 
   const existingCart = await col.findOne({ cartId: cartUuid, 'products.productId': productId });
 
-  let totalNumberOfItems = 0;
-  let totalPrice = 0;
-
+  let result;
   if (existingCart) {
-    const result = await col.updateOne(
-      { cartId: cartUuid, 'products.productId': productId },
-      {
-        $set: {
-          'products.$.name': name,
-          'products.$.price': price,
-          'products.$.quantity': quantity
-        },
-      },
-    );
-
-    const updatedCart = await col.findOne({ cartId: cartUuid });
-    updatedCart.products.forEach(product => {
-      totalNumberOfItems += product.quantity;
-      totalPrice += product.price * product.quantity;
-    });
-
-    await col.updateOne(
-      { cartId: cartUuid },
-      {
-        $set: {
-          totalNumberOfItems,
-          totalPrice
-        }
-      }
-    );
-
-    return result;
+    result = await updateExistingProduct(col, cartUuid, productId, name, price, quantity);
   } else {
-    const result = await col.updateOne(
-      { cartId: cartUuid },
-      {
-        $push: {
-          products: {
-            productId, name, price, quantity,
-          },
-        },
-        $inc: {
-          totalNumberOfItems: quantity
-        }
-      },
-      { upsert: true }
-    );
-
-    // recalculate totalNumberOfItems and totalPrice based on new product added
-    const updatedCart = await col.findOne({ cartId: cartUuid });
-    updatedCart.products.forEach(product => {
-      totalNumberOfItems += product.quantity;
-      totalPrice += product.price * product.quantity;
-    });
-
-    await col.updateOne(
-      { cartId: cartUuid },
-      {
-        $set: {
-          totalPrice,
-        }
-      }
-    );
-
-    return result;
+    result = await addNewProduct(col, cartUuid, productId, name, price, quantity);
   }
+
+  await updateTotals(col, cartUuid);
+
+  return result;
 };
 
 
@@ -136,7 +149,6 @@ const deleteCart = async cartId => {
   const result = await col.deleteOne({ cartId });
   return result.deletedCount;
 };
-
 
 
 export default {

@@ -4,9 +4,12 @@ import {
 } from './carts';
 import { getProductById } from './products';
 
-const app: Application = express();
+const app = express();
 const port = 3002;
+
 app.use(express.json());
+
+
 
 // Don't change the code above this line!
 // Write your enpoints here
@@ -30,10 +33,10 @@ app.get('/api/carts/:cartid', async (req, res) => {
   const cartId = req.params.cartid;
   try {
     const cart = await getCart(cartId);
-    if (cart) {
-      return res.status(200).json(cart);
+    if (!cart) {
+      return res.status(404).json({ message: `Cart with ID ${cartId} not found.` });
     }
-    return res.status(404).json({ message: `Cart with ID ${cartId} not found.` });
+    return res.status(200).json(cart);
   } catch (error) {
     return res.status(500).json({ message: 'An error occurred while retrieving the cart.' });
   }
@@ -42,29 +45,42 @@ app.get('/api/carts/:cartid', async (req, res) => {
 app.post('/api/carts/:cartId/products', async (req, res) => {
   try {
     const { productId, quantity: inputQuantity } = req.body;
-    const cartData = {
-      cartId: req.params.cartId,
+    if (!inputQuantity) {
+      return res.status(400).json({ message: 'Quantity not provided' });
+    }
+    
+    const cartId = req.params.cartId;
+    if (!await getCart(cartId)) {
+      return res.status(404).json({ message: `Cart with ID ${cartId} not found` });
+    }
+
+    const cartDataToPost = {
+      cartId,
       quantity: inputQuantity,
     };
-
+   
     const product = await getProductById(productId);
-    await addProductToCart(product[0], cartData);
-
+    await addProductToCart(product[0], cartDataToPost);
     res.status(201).json(product);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(400).json({ message: 'Product not found' });
   }
 });
 
-app.delete('/api/carts/:cartId', async (req, res) => {
-  const { cartId } = req.params;
+
+app.delete('/api/carts/:cartId', async (req: Request, res: Response) => {
+  const cartId = req.params.cartId;
   try {
-    await deleteCart(cartId);
     const cart = await getCart(cartId);
-    return res.status(200).json(cart);
+    if (!cart) {
+      return res.status(204).json({ message: 'Cart not found' });
+    }
+    await deleteCart(cartId);
+    return res.status(204).end();
   } catch (error) {
-    return res.status(500).json({ message: 'An error occurred while retrieving the cart.' });
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while deleting the cart.' });
   }
 });
 

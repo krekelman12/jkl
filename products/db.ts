@@ -11,11 +11,11 @@
 */
 import dotenv from 'dotenv';
 import path from 'path';
+import { Pool } from 'pg';
 
 dotenv.config({
   path: path.resolve(__dirname, '../containerConfig/psql.env'),
 });
-import { Pool } from 'pg';
 
 const pool = new Pool({
   host: 'localhost',
@@ -27,11 +27,12 @@ const pool = new Pool({
 
 const getProductById = async (productId) => {
   const client = await pool.connect();
-  const res = await client.query(`
-    SELECT * FROM salt_products WHERE product_id = '${productId}'
-  `);
+  const res = await client.query(
+    `SELECT * FROM salt_products WHERE product_id = '${productId}'`,
+  );
   client.release();
-  return res.rows;
+
+  return res.rows && res.rows.length > 0 ? res.rows : null;
 };
 
 
