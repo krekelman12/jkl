@@ -25,15 +25,14 @@ const pool = new Pool({
   password: `${process.env.POSTGRES_PASSWORD}`,
 });
 
-const getProductById = async (productId) => {
+const getProductById = async productId => {
   const client = await pool.connect();
   const res = await client.query(
     `SELECT * FROM salt_products WHERE product_id = '${productId}'`,
   );
   client.release();
 
-  return res.rows && res.rows.length > 0 ? res.rows : null;
+  return res.rows
 };
-
 
 export default { getProductById };

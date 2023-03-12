@@ -5,11 +5,9 @@ import {
 import { getProductById } from './products';
 
 const app = express();
-const port = 3002;
+const port = 3003;
 
 app.use(express.json());
-
-
 
 // Don't change the code above this line!
 // Write your enpoints here
@@ -48,8 +46,8 @@ app.post('/api/carts/:cartId/products', async (req, res) => {
     if (!inputQuantity) {
       return res.status(400).json({ message: 'Quantity not provided' });
     }
-    
-    const cartId = req.params.cartId;
+
+    const { cartId } = req.params;
     if (!await getCart(cartId)) {
       return res.status(404).json({ message: `Cart with ID ${cartId} not found` });
     }
@@ -58,10 +56,12 @@ app.post('/api/carts/:cartId/products', async (req, res) => {
       cartId,
       quantity: inputQuantity,
     };
-   
+
     const product = await getProductById(productId);
     await addProductToCart(product[0], cartDataToPost);
-    res.status(201).json(product);
+    console.log(await getCart(cartId));
+
+    res.status(201).json(await getCart(cartId));
   } catch (error) {
     console.error(error);
     res.status(400).json({ message: 'Product not found' });

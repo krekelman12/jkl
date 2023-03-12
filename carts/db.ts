@@ -1,25 +1,20 @@
-//
-// Put all the database access code for mongoDB in this file.
-// Remember separation of concerns!
-//
 import { MongoClient, ServerApiVersion } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
-import * as mongoDB from 'mongodb';
-import dotenv from 'dotenv';
+
 import path from 'path';
+import dotenv from 'dotenv';
 import { Cart } from '../types';
 
 dotenv.config({
   path: path.resolve(__dirname, '../containerConfig/mongodb.env'),
 });
 
-const uri = `mongodb://${process.env.MONGO_INITDB_ROOT_USERNAME}:${process.env.MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/?authSource=admin`;
-
 const connectToDatabase = async () => {
-  const client = new mongoDB.MongoClient(uri, {
+  const uri = `mongodb://${process.env.MONGO_INITDB_ROOT_USERNAME}:${process.env.MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/?authSource=admin`;
+  const client = new MongoClient(uri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverApi: mongoDB.ServerApiVersion.v1,
+    serverApi: ServerApiVersion.v1,
     ssl: false,
   });
   await client.connect();
@@ -95,24 +90,29 @@ const getTotalPrice = products => {
   return totalPrice;
 };
 
-
 const generateCartId = () => uuidv4();
 
 const createNewCart = async (): Promise<Cart> => {
   const { col } = await connectToDatabase();
+
   const newCart: Cart = {
     cartId: generateCartId(),
     products: [],
     totalNumberOfItems: 0,
     totalPrice: 0,
   };
-  await col.insertOne(newCart);
-  return newCart;
+
+  const result = Object.assign({}, (await col.insertOne(newCart)).ops[0]);
+  delete result._id;
+
+  return result;
 };
+
+
 
 const getCartById = async id => {
   const { col } = await connectToDatabase();
-  const data = await col.findOne({ cartId: id });
+  const data = await col.findOne({ cartId: id }, { projection: { _id: 0 } });
   return data;
 };
 
@@ -143,13 +143,11 @@ const updateCart = async cart => {
   return result;
 };
 
-
 const deleteCart = async cartId => {
   const { col } = await connectToDatabase();
   const result = await col.deleteOne({ cartId });
   return result.deletedCount;
 };
-
 
 export default {
   createNewCart,
